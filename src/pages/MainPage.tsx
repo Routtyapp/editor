@@ -37,33 +37,8 @@ interface FileItem {
   isCompleted: boolean
 }
 
-// ── Mock data (replace with API call) ─────────────────────────────────────
-
-const SPEAKER_PAIRS = [
-  ['구강모', '유정우'], ['박민준', '이서연'], ['김태호', '정유진'],
-  ['최동현', '강수아'], ['윤성민', '임지현'], ['장현우', '오세영'],
-  ['한재원', '신민서'], ['류성훈', '백지수'], ['권혁준', '문소희'],
-  ['송태양', '조예린'], ['남기현', '황보선'], ['엄준식', '홍다혜'],
-]
-
-function generateMockData(count = 900): FileItem[] {
-  return Array.from({ length: count }, (_, i) => {
-    const pair = SPEAKER_PAIRS[i % SPEAKER_PAIRS.length]
-    const date = new Date(2025, 5, 1 + (i % 90))
-    const yy = String(date.getFullYear()).slice(2)
-    const mm = String(date.getMonth() + 1).padStart(2, '0')
-    const dd = String(date.getDate()).padStart(2, '0')
-    return {
-      id: i + 1,
-      fileName: `${yy}${mm}${dd}_${pair[0]}_${pair[1]}_${String(i + 1).padStart(3, '0')}.txt`,
-      lastModified: `${yy}.${mm}.${dd}`,
-      fileSize: 8192 + ((i * 3571) % 1_040_384),
-      isCompleted: i % 4 === 0,
-    }
-  })
-}
-
-const DATA = generateMockData()
+// ── Data source (replace with API call) ───────────────────────────────────
+const DATA: FileItem[] = []
 const PAGE_SIZE = 20
 
 // ── Column definitions ─────────────────────────────────────────────────────
@@ -289,14 +264,18 @@ export default function MainPage() {
 
         <nav className="flex items-center gap-0.5 text-sm min-w-0">
           <span className="flex items-center gap-0.5 shrink-0">
-            <span className="text-slate-400 px-1 text-xs">홈</span>
+            <button
+              type="button"
+              onClick={() => navigate('/')}
+              className="text-slate-400 px-1 text-xs hover:text-slate-700"
+            >
+              루트
+            </button>
             <ChevronRight className="w-3 h-3 text-slate-300" />
           </span>
           <span className="flex items-center gap-0.5 shrink-0">
-            <span className="text-slate-400 px-1 text-xs">{decodedFolderName}</span>
-            <ChevronRight className="w-3 h-3 text-slate-300" />
+            <span className="text-slate-800 font-medium px-1 text-sm">{decodedFolderName}</span>
           </span>
-          <span className="text-slate-800 font-medium px-1 text-sm">파일목록</span>
         </nav>
       </header>
 

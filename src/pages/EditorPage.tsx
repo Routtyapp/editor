@@ -1,4 +1,4 @@
-import { useState } from 'react'
+﻿import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ChevronLeft, ChevronRight, FileText } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -6,28 +6,8 @@ import MainEditor from '@/components/MainEditor'
 import Sidebar from '@/components/Sidebar'
 import type { TranscriptData, Character } from '@/types'
 
-const MOCK_TRANSCRIPT: TranscriptData = {
-  date: '25.06.27.',
-  lines: [
-    { id: '1', speaker: '구강모', timestamp: '00:00', text: '네. 대표님.' },
-    { id: '2', speaker: '유정우', timestamp: null, text: '그 저기 광명시 청소년 수련?' },
-    { id: '3', speaker: '구강모', timestamp: null, text: '네?' },
-    { id: '4', speaker: '유정우', timestamp: null, text: '광명시 청소년 지원센터 꿈 드림?' },
-    { id: '5', speaker: '구강모', timestamp: null, text: '네네.' },
-    { id: '6', speaker: '유정우', timestamp: null, text: '이거?' },
-    { id: '7', speaker: '구강모', timestamp: null, text: '네.' },
-    { id: '8', speaker: '유정우', timestamp: null, text: '통화했어요?' },
-    { id: '9', speaker: '구강모', timestamp: '00:10', text: '오는 중에 제가 오후까지 연락드린다고 했습니다.' },
-    { id: '10', speaker: '유정우', timestamp: '00:14', text: '내가 전화할 건데' },
-    { id: '11', speaker: '구강모', timestamp: null, text: '네.' },
-    { id: '12', speaker: '유정우', timestamp: null, text: '그 사이에 그 사람한테 받은 문자 있으면 나한테 보내주세요.' },
-  ],
-}
-
-const INITIAL_CHARACTERS: Character[] = [
-  { id: '1', name: '구강모', color: '#3B82F6' },
-  { id: '2', name: '유정우', color: '#10B981' },
-]
+const EMPTY_TRANSCRIPT: TranscriptData = { date: '', lines: [] }
+const EMPTY_CHARACTERS: Character[] = []
 
 export default function EditorPage() {
   const { folderName, filename } = useParams<{ folderName: string; filename: string }>()
@@ -35,8 +15,8 @@ export default function EditorPage() {
   const decodedFolderName = folderName ? decodeURIComponent(folderName) : ''
   const decodedFileName = filename ? decodeURIComponent(filename) : ''
 
-  const [transcript, setTranscript] = useState<TranscriptData>(MOCK_TRANSCRIPT)
-  const [characters, setCharacters] = useState<Character[]>(INITIAL_CHARACTERS)
+  const [transcript, setTranscript] = useState<TranscriptData>(EMPTY_TRANSCRIPT)
+  const [characters, setCharacters] = useState<Character[]>(EMPTY_CHARACTERS)
   const [audioTime, setAudioTime] = useState(0)
 
   const handleSetCharacters = (newChars: Character[]) => {
@@ -47,6 +27,7 @@ export default function EditorPage() {
         renamedMap.set(oldChar.name, newChar.name)
       }
     })
+
     if (renamedMap.size > 0) {
       setTranscript(prev => ({
         ...prev,
@@ -56,13 +37,12 @@ export default function EditorPage() {
         })),
       }))
     }
+
     setCharacters(newChars)
   }
 
   return (
     <div className="h-screen flex flex-col bg-white overflow-hidden">
-
-      {/* ── Header 56px ── */}
       <header className="h-14 shrink-0 border-b border-slate-200 bg-white flex items-center gap-2 px-6">
         <Button
           variant="ghost"
@@ -73,20 +53,29 @@ export default function EditorPage() {
           <ChevronLeft className="w-4 h-4" />
         </Button>
 
-        {/* Breadcrumb */}
         <nav className="flex items-center gap-0.5 text-sm min-w-0">
           <span className="flex items-center gap-0.5 shrink-0">
-            <span className="text-slate-400 px-1 text-xs">홈</span>
+            <button
+              type="button"
+              onClick={() => navigate('/')}
+              className="text-slate-400 px-1 text-xs hover:text-slate-700"
+            >
+              루트
+            </button>
             <ChevronRight className="w-3 h-3 text-slate-300" />
           </span>
+
           <span className="flex items-center gap-0.5 shrink-0">
-            <span className="text-slate-400 px-1 text-xs">{decodedFolderName || '폴더'}</span>
+            <button
+              type="button"
+              onClick={() => navigate(`/${encodeURIComponent(decodedFolderName)}`)}
+              className="text-slate-400 px-1 text-xs hover:text-slate-700"
+            >
+              {decodedFolderName || '폴더'}
+            </button>
             <ChevronRight className="w-3 h-3 text-slate-300" />
           </span>
-          <span className="flex items-center gap-0.5 shrink-0">
-            <span className="text-slate-400 px-1 text-xs">파일목록</span>
-            <ChevronRight className="w-3 h-3 text-slate-300" />
-          </span>
+
           <span className="flex items-center gap-1.5 text-slate-800 font-medium px-1 min-w-0">
             <FileText className="w-3.5 h-3.5 text-slate-400 shrink-0" />
             <span className="truncate text-sm">{decodedFileName || '파일 없음'}</span>
@@ -94,7 +83,6 @@ export default function EditorPage() {
         </nav>
       </header>
 
-      {/* ── Body ── */}
       <div className="flex-1 flex overflow-hidden">
         <MainEditor
           transcript={transcript}
