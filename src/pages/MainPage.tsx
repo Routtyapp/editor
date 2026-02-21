@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { fetchDocuments } from '@/lib/api'
 import {
   useReactTable,
   getCoreRowModel,
@@ -37,8 +38,6 @@ interface FileItem {
   isCompleted: boolean
 }
 
-// ── Data source (replace with API call) ───────────────────────────────────
-const DATA: FileItem[] = []
 const PAGE_SIZE = 20
 
 // ── Column definitions ─────────────────────────────────────────────────────
@@ -186,9 +185,10 @@ const columns: ColumnDef<FileItem>[] = [
 // ── Page ───────────────────────────────────────────────────────────────────
 
 export default function MainPage() {
-  const { folderName } = useParams<{ folderName: string }>()
+  const { categoryId, folderName } = useParams<{ categoryId: string; folderName: string }>()
   const navigate = useNavigate()
   const decodedFolderName = folderName ? decodeURIComponent(folderName) : '폴더'
+  const [data, setData] = useState<FileItem[]>([])
   const [sorting, setSorting] = useState<SortingState>([])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
   const [statusFilter, setStatusFilter] = useState('all')
@@ -199,10 +199,23 @@ export default function MainPage() {
   const sentinelRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
 
-  const data = useMemo(() => DATA, [])
+  useEffect(() => {
+    if (!categoryId) return
+    fetchDocuments(Number(categoryId)).then(docs => {
+      setData(docs.map(d => ({
+        id: d.id,
+        fileName: d.title,
+        lastModified: new Date(d.updated_at).toLocaleDateString('ko-KR'),
+        fileSize: d.file_size,
+        isCompleted: d.status === 'completed',
+      })))
+    })
+  }, [categoryId])
+
+  const tableData = useMemo(() => data, [data])
 
   const table = useReactTable({
-    data,
+    data: tableData,
     columns,
     getRowId: row => String(row.id),
     state: { sorting, columnFilters, rowSelection },
@@ -353,7 +366,7 @@ export default function MainPage() {
                       key={row.id}
                       onClick={() => {
                         if (selectedCount > 0) row.toggleSelected()
-                        else navigate(`/${encodeURIComponent(decodedFolderName)}/${encodeURIComponent(row.original.fileName)}`)
+                        else navigate(`/${categoryId}/${encodeURIComponent(decodedFolderName)}/${encodeURIComponent(row.original.fileName)}`)
                       }}
                       data-state={row.getIsSelected() ? 'selected' : undefined}
                       className="group h-[52px] border-b border-slate-100 hover:bg-slate-50 data-[state=selected]:bg-blue-50/60 cursor-pointer transition-colors"

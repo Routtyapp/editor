@@ -1,10 +1,9 @@
-﻿import { useMemo, useState } from 'react'
+﻿import { useEffect, useMemo, useState } from 'react'
 import { ChevronLeft, Download, Folder } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
   Table,
   TableBody,
@@ -13,30 +12,35 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { fetchCategories } from '@/lib/api'
 
 interface FolderItem {
   id: number
   folderName: string
-  category: 'recordings' | 'calls'
-  fileCount: number
   lastModified: string
 }
 
-const FOLDERS: FolderItem[] = []
-
 export default function FolderListPage() {
   const navigate = useNavigate()
+  const [folders, setFolders] = useState<FolderItem[]>([])
   const [search, setSearch] = useState('')
-  const [categoryFilter, setCategoryFilter] = useState<'all' | 'recordings' | 'calls'>('all')
   const [selectedFolderIds, setSelectedFolderIds] = useState<Record<number, boolean>>({})
 
-  const filteredFolders = useMemo(() => {
-    return FOLDERS.filter(folder => {
-      const matchesSearch = folder.folderName.toLowerCase().includes(search.toLowerCase())
-      const matchesCategory = categoryFilter === 'all' || folder.category === categoryFilter
-      return matchesSearch && matchesCategory
+  useEffect(() => {
+    fetchCategories().then(data => {
+      setFolders(data.map(c => ({
+        id: c.id,
+        folderName: c.name,
+        lastModified: new Date(c.created_at).toLocaleDateString('ko-KR'),
+      })))
     })
-  }, [search, categoryFilter])
+  }, [])
+
+  const filteredFolders = useMemo(() => {
+    return folders.filter(folder =>
+      folder.folderName.toLowerCase().includes(search.toLowerCase())
+    )
+  }, [folders, search])
 
   const selectedCount = filteredFolders.filter(folder => selectedFolderIds[folder.id]).length
   const isAllSelected = filteredFolders.length > 0 && selectedCount === filteredFolders.length
@@ -112,16 +116,6 @@ export default function FolderListPage() {
                   onChange={e => setSearch(e.target.value)}
                   className="h-7 w-60 text-xs border-slate-200 placeholder:text-slate-400 focus-visible:ring-1 focus-visible:ring-slate-300"
                 />
-                <Select value={categoryFilter} onValueChange={(value: 'all' | 'recordings' | 'calls') => setCategoryFilter(value)}>
-                  <SelectTrigger className="h-7 w-28 text-xs border-slate-200 focus:ring-1 focus:ring-slate-300">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all" className="text-xs">전체</SelectItem>
-                    <SelectItem value="recordings" className="text-xs">recordings</SelectItem>
-                    <SelectItem value="calls" className="text-xs">calls</SelectItem>
-                  </SelectContent>
-                </Select>
               </div>
             </div>
 
@@ -139,7 +133,6 @@ export default function FolderListPage() {
                     </TableHead>
                     <TableHead className="h-10 px-6 text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-400">#</TableHead>
                     <TableHead className="h-10 px-6 text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-400">폴더명</TableHead>
-                    <TableHead className="h-10 px-6 text-right text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-400">파일 수</TableHead>
                     <TableHead className="h-10 px-6 text-right text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-400">최종 수정</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -150,7 +143,7 @@ export default function FolderListPage() {
                       key={folder.id}
                       onClick={() => {
                         if (selectedCount > 0) toggleFolder(folder.id, !selectedFolderIds[folder.id])
-                        else navigate(`/${encodeURIComponent(folder.folderName)}`)
+                        else navigate(`/${folder.id}/${encodeURIComponent(folder.folderName)}`)
                       }}
                       className="group h-[52px] border-b border-slate-100 hover:bg-slate-50 cursor-pointer transition-colors"
                     >
@@ -172,14 +165,13 @@ export default function FolderListPage() {
                           </span>
                         </span>
                       </TableCell>
-                      <TableCell className="px-6 text-right text-sm text-slate-400 font-mono tabular-nums">{folder.fileCount}</TableCell>
                       <TableCell className="px-6 text-right text-sm text-slate-400 font-mono tabular-nums">{folder.lastModified}</TableCell>
                     </TableRow>
                   ))}
 
                   {filteredFolders.length === 0 && (
                     <TableRow className="hover:bg-transparent">
-                      <TableCell colSpan={5} className="h-32 text-center text-sm text-slate-400">
+                      <TableCell colSpan={4} className="h-32 text-center text-sm text-slate-400">
                         검색 결과가 없습니다.
                       </TableCell>
                     </TableRow>
