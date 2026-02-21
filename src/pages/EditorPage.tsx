@@ -30,8 +30,9 @@ const INITIAL_CHARACTERS: Character[] = [
 ]
 
 export default function EditorPage() {
-  const { filename } = useParams<{ filename: string }>()
+  const { folderName, filename } = useParams<{ folderName: string; filename: string }>()
   const navigate = useNavigate()
+  const decodedFolderName = folderName ? decodeURIComponent(folderName) : ''
   const decodedFileName = filename ? decodeURIComponent(filename) : ''
 
   const [transcript, setTranscript] = useState<TranscriptData>(MOCK_TRANSCRIPT)
@@ -66,7 +67,7 @@ export default function EditorPage() {
         <Button
           variant="ghost"
           size="icon"
-          onClick={() => navigate('/')}
+          onClick={() => navigate(`/${encodeURIComponent(decodedFolderName)}`)}
           className="w-8 h-8 text-slate-400 hover:text-slate-700 shrink-0"
         >
           <ChevronLeft className="w-4 h-4" />
@@ -74,12 +75,18 @@ export default function EditorPage() {
 
         {/* Breadcrumb */}
         <nav className="flex items-center gap-0.5 text-sm min-w-0">
-          {['recordings', '2025', '06'].map((part, i) => (
-            <span key={i} className="flex items-center gap-0.5 shrink-0">
-              <span className="text-slate-400 px-1 text-xs">{part}</span>
-              <ChevronRight className="w-3 h-3 text-slate-300" />
-            </span>
-          ))}
+          <span className="flex items-center gap-0.5 shrink-0">
+            <span className="text-slate-400 px-1 text-xs">홈</span>
+            <ChevronRight className="w-3 h-3 text-slate-300" />
+          </span>
+          <span className="flex items-center gap-0.5 shrink-0">
+            <span className="text-slate-400 px-1 text-xs">{decodedFolderName || '폴더'}</span>
+            <ChevronRight className="w-3 h-3 text-slate-300" />
+          </span>
+          <span className="flex items-center gap-0.5 shrink-0">
+            <span className="text-slate-400 px-1 text-xs">파일목록</span>
+            <ChevronRight className="w-3 h-3 text-slate-300" />
+          </span>
           <span className="flex items-center gap-1.5 text-slate-800 font-medium px-1 min-w-0">
             <FileText className="w-3.5 h-3.5 text-slate-400 shrink-0" />
             <span className="truncate text-sm">{decodedFileName || '파일 없음'}</span>

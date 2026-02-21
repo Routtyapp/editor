@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import {
   useReactTable,
   getCoreRowModel,
@@ -11,7 +11,7 @@ import {
   type ColumnFiltersState,
   type RowSelectionState,
 } from '@tanstack/react-table'
-import { FileText, ArrowUpDown, ArrowUp, ArrowDown, Download, FileArchive, Files } from 'lucide-react'
+import { FileText, ArrowUpDown, ArrowUp, ArrowDown, Download, FileArchive, Files, ChevronLeft, ChevronRight } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -211,7 +211,9 @@ const columns: ColumnDef<FileItem>[] = [
 // ── Page ───────────────────────────────────────────────────────────────────
 
 export default function MainPage() {
+  const { folderName } = useParams<{ folderName: string }>()
   const navigate = useNavigate()
+  const decodedFolderName = folderName ? decodeURIComponent(folderName) : '폴더'
   const [sorting, setSorting] = useState<SortingState>([])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
   const [statusFilter, setStatusFilter] = useState('all')
@@ -274,16 +276,34 @@ export default function MainPage() {
   }
 
   return (
-    <div className="h-screen overflow-hidden bg-slate-50">
-      <div className="max-w-[1440px] mx-auto h-full flex flex-col">
+    <div className="h-screen flex flex-col bg-white overflow-hidden">
+      <header className="h-14 shrink-0 border-b border-slate-200 bg-white flex items-center gap-2 px-6">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => navigate('/')}
+          className="w-8 h-8 text-slate-400 hover:text-slate-700 shrink-0"
+        >
+          <ChevronLeft className="w-4 h-4" />
+        </Button>
 
-        {/* ── Header ── */}
-        <header className="h-16 shrink-0 flex items-center px-10">
-          <h1 className="text-base font-semibold text-slate-900">파일 목록</h1>
-        </header>
+        <nav className="flex items-center gap-0.5 text-sm min-w-0">
+          <span className="flex items-center gap-0.5 shrink-0">
+            <span className="text-slate-400 px-1 text-xs">홈</span>
+            <ChevronRight className="w-3 h-3 text-slate-300" />
+          </span>
+          <span className="flex items-center gap-0.5 shrink-0">
+            <span className="text-slate-400 px-1 text-xs">{decodedFolderName}</span>
+            <ChevronRight className="w-3 h-3 text-slate-300" />
+          </span>
+          <span className="text-slate-800 font-medium px-1 text-sm">파일목록</span>
+        </nav>
+      </header>
 
-        {/* ── DataTable Section ── */}
-        <section className="mx-10 mb-10 rounded-xl border border-slate-200 bg-white overflow-hidden flex flex-col flex-1 min-h-0">
+      <div className="flex-1 overflow-hidden bg-slate-50">
+        <div className="max-w-[1440px] mx-auto h-full flex flex-col">
+          {/* ── DataTable Section ── */}
+          <section className="mx-6 my-6 rounded-xl border border-slate-200 bg-white overflow-hidden flex flex-col flex-1 min-h-0">
 
           {/* Toolbar */}
           <div className="h-12 shrink-0 border-b border-slate-200 flex items-center gap-3 px-6">
@@ -352,7 +372,10 @@ export default function MainPage() {
                   visibleRows.map(row => (
                     <TableRow
                       key={row.id}
-                      onClick={() => { if (selectedCount > 0) row.toggleSelected(); else navigate(`/${encodeURIComponent(row.original.fileName)}`) }}
+                      onClick={() => {
+                        if (selectedCount > 0) row.toggleSelected()
+                        else navigate(`/${encodeURIComponent(decodedFolderName)}/${encodeURIComponent(row.original.fileName)}`)
+                      }}
                       data-state={row.getIsSelected() ? 'selected' : undefined}
                       className="group h-[52px] border-b border-slate-100 hover:bg-slate-50 data-[state=selected]:bg-blue-50/60 cursor-pointer transition-colors"
                     >
@@ -389,8 +412,8 @@ export default function MainPage() {
             ) : null}
           </div>
 
-        </section>
-
+          </section>
+        </div>
       </div>
 
       {/* ── Download Modal ── */}
