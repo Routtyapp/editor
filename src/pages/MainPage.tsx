@@ -366,7 +366,7 @@ export default function MainPage() {
                       key={row.id}
                       onClick={() => {
                         if (selectedCount > 0) row.toggleSelected()
-                        else navigate(`/${categoryId}/${encodeURIComponent(decodedFolderName)}/${encodeURIComponent(row.original.fileName)}`)
+                        else navigate(`/${categoryId}/${encodeURIComponent(decodedFolderName)}/${row.original.id}`)
                       }}
                       data-state={row.getIsSelected() ? 'selected' : undefined}
                       className="group h-[52px] border-b border-slate-100 hover:bg-slate-50 data-[state=selected]:bg-blue-50/60 cursor-pointer transition-colors"

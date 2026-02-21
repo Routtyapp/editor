@@ -11,7 +11,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<FolderListPage />} />
           <Route path="/:categoryId/:folderName" element={<MainPage />} />
-          <Route path="/:categoryId/:folderName/:filename" element={<EditorPage />} />
+          <Route path="/:categoryId/:folderName/:documentId" element={<EditorPage />} />
         </Routes>
       </BrowserRouter>
     </TooltipProvider>
