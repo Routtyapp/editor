@@ -97,7 +97,7 @@ export default function EditorPage() {
     const orders = hasStructureChange
       ? current
           .filter(l => !l.id.startsWith('new_'))
-          .map((l, i) => ({ id: Number(l.id), order: i }))
+          .map(l => ({ id: Number(l.id), order: current.indexOf(l) }))
       : []
 
     return { created, updated, deleted, orders }
