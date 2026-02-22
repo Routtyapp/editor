@@ -47,7 +47,7 @@ export default function MainEditor({ transcript, setTranscript, characters, audi
     const currentLine = transcript.lines.find(l => l.id === id)
     if (!currentLine) return
     const newLine: TranscriptLine = {
-      id: Date.now().toString(),
+      id: `new_${Date.now()}`,
       speaker: '',
       timestamp: null,
       text: '',
