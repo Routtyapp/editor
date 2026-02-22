@@ -51,7 +51,7 @@ export default function FolderListPage() {
       setFolders(data.map(c => ({
         id: c.id,
         folderName: c.name,
-        lastModified: new Date(c.created_at).toLocaleDateString('ko-KR'),
+        lastModified: new Date(c.created_at).toLocaleString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }),
       })))
     })
   }, [])
@@ -129,7 +129,7 @@ export default function FolderListPage() {
                     className="h-7 px-3 text-xs gap-1.5"
                   >
                     <Download className="w-3.5 h-3.5" />
-                    다운로드
+                    병합후 다운로드
                   </Button>
                   <div className="w-px h-4 bg-slate-200 mx-1" />
                 </>

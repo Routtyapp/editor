@@ -115,7 +115,7 @@ export default function MainPage() {
       const items: FileItem[] = docs.map(d => ({
         id: d.id,
         fileName: d.title,
-        lastModified: new Date(d.updated_at).toLocaleDateString('ko-KR'),
+        lastModified: new Date(d.updated_at).toLocaleString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }),
         fileSize: d.file_size,
         status: d.status,
       }))
