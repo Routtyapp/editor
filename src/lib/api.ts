@@ -79,32 +79,22 @@ export async function fetchDocument(documentId: number): Promise<DocumentDetail>
   return res.json().then(r => r.data)
 }
 
+export interface PatchScriptLinesResponse {
+  lines:    [string, number][]   // [temp_id, db_id]
+  speakers: [string, number][]   // [temp_id, db_id]
+}
+
 export async function patchScriptLines(
   documentId: number,
   diff: ScriptLineDiff
-): Promise<void> {
-  // TODO: 백엔드 완성 후 실제 fetch로 교체
-  console.log('[patchScriptLines] documentId:', documentId, 'diff:', diff)
-  // const res = await fetch(`${BASE}/documents/${documentId}/script_lines`, {
-  //   method: 'PATCH',
-  //   headers: { 'Content-Type': 'application/json' },
-  //   body: JSON.stringify(diff),
-  // })
-  // if (!res.ok) throw new Error('script_lines patch failed')
-}
-
-export async function patchDocumentStatus(
-  documentId: number,
-  status: 'in_progress' | 'completed'
-): Promise<void> {
-  // TODO: 백엔드 완성 후 실제 fetch로 교체
-  console.log('[patchDocumentStatus] documentId:', documentId, 'status:', status)
-  // const res = await fetch(`${BASE}/documents/${documentId}`, {
-  //   method: 'PATCH',
-  //   headers: { 'Content-Type': 'application/json' },
-  //   body: JSON.stringify({ status }),
-  // })
-  // if (!res.ok) throw new Error('document status patch failed')
+): Promise<PatchScriptLinesResponse> {
+  const res = await fetch(`${BASE}/documents/${documentId}/script_lines`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(diff),
+  })
+  if (!res.ok) throw new Error('script_lines patch failed')
+  return res.json().then(r => r.data)
 }
 
 export async function downloadDocuments(documentIds: number[]): Promise<void> {

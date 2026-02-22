@@ -82,37 +82,56 @@ export default function MainEditor({ transcript, setTranscript, characters, audi
   }
 
   return (
-    <main className="flex-1 overflow-y-auto bg-white">
-      <div className="max-w-[800px] mx-auto px-10 py-8">
+    <main className="flex-1 flex flex-col overflow-hidden bg-white">
+      <div className="flex-1 overflow-y-auto">
+        <div className="max-w-[800px] mx-auto px-10 py-8">
 
-        {/* ── Header ── */}
-        <div className="flex items-center gap-3 mb-8">
-          <h2 className="text-sm font-semibold text-slate-900">스크립트</h2>
-          <span className="text-xs text-slate-400 font-mono">{transcript.date}</span>
-        </div>
+          {/* ── Header ── */}
+          <div className="flex items-center gap-3 mb-8">
+            <h2 className="text-sm font-semibold text-slate-900">스크립트</h2>
+            <span className="text-xs text-slate-400 font-mono">{transcript.date}</span>
+          </div>
 
-        {/* ── Transcript ── */}
-        <div className="space-y-0.5">
-          {transcript.lines.map(line => (
-            <TranscriptRow
-              key={line.id}
-              line={line}
-              isEditing={editingLineId === line.id}
-              editingText={editingText}
-              characters={characters}
-              audioTime={audioTime}
-              speakerColor={characters.find(c => c.name === line.speaker)?.color}
-              onStartEdit={() => startEdit(line)}
-              onCommit={() => commitEdit(line.id)}
-              onEnter={() => insertLineAfter(line.id)}
-              onCancel={cancelEdit}
-              onTextChange={setEditingText}
-              onSpeakerChange={speaker => updateSpeaker(line.id, speaker)}
-              onStampTime={() => setTimestamp(line.id)}
-              onDelete={() => deleteLine(line.id)}
-            />
-          ))}
+          {/* ── Transcript ── */}
+          <div className="space-y-0.5">
+            {transcript.lines.map(line => (
+              <TranscriptRow
+                key={line.id}
+                line={line}
+                isEditing={editingLineId === line.id}
+                editingText={editingText}
+                characters={characters}
+                audioTime={audioTime}
+                speakerColor={characters.find(c => c.name === line.speaker)?.color}
+                onStartEdit={() => startEdit(line)}
+                onCommit={() => commitEdit(line.id)}
+                onEnter={() => insertLineAfter(line.id)}
+                onCancel={cancelEdit}
+                onTextChange={setEditingText}
+                onSpeakerChange={speaker => updateSpeaker(line.id, speaker)}
+                onStampTime={() => setTimestamp(line.id)}
+                onDelete={() => deleteLine(line.id)}
+              />
+            ))}
+          </div>
         </div>
+      </div>
+
+      {/* ── 단축키 힌트 바 ── */}
+      <div className="shrink-0 h-8 border-t border-slate-100 bg-slate-50/60 flex items-center justify-center gap-5">
+        <span className="text-[10px] text-slate-400">(인라인 편집시)</span>
+        {[
+          { key: 'Alt + Enter', label: '새 줄 삽입' },
+          { key: 'Ctrl + S',    label: '저장' },
+          { key: 'Esc',         label: '취소' },
+        ].map(({ key, label }) => (
+          <span key={key} className="flex items-center gap-1.5 text-[11px] text-slate-400">
+            <kbd className="inline-flex items-center px-1 py-px rounded border border-slate-200 bg-white font-mono text-[10px] text-slate-500 leading-none">
+              {key}
+            </kbd>
+            {label}
+          </span>
+        ))}
       </div>
     </main>
   )

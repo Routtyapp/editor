@@ -22,9 +22,15 @@ export interface AudioData {
 }
 
 export interface ScriptLineDiff {
+  status: 'in_progress' | 'completed' | null  // null이면 변경 안 함
+  speakers: {
+    created: { temp_id: string; name: string }[]  // "new_speaker_xxx"
+    updated: { id: number; name: string }[]
+    deleted: number[]
+  }
   created: {
     temp_id: string          // "new_xxx", 백엔드는 무시하고 새 id 발급
-    speaker_id: number
+    speaker_id: string       // DB id 문자열 or 새 화자의 temp_id
     text: string
     start_time: string | null
     order: number

@@ -15,6 +15,7 @@ export default function AudioPlayer({ src, onTimeChange }: AudioPlayerProps) {
   const [currentTime, setCurrentTime] = useState(0)
   const [duration, setDuration] = useState(0)
   const [isLoaded, setIsLoaded] = useState(false)
+  const [playbackRate, setPlaybackRate] = useState(1)
 
   const togglePlay = useCallback(() => {
     const audio = audioRef.current
@@ -22,6 +23,14 @@ export default function AudioPlayer({ src, onTimeChange }: AudioPlayerProps) {
     if (audio.paused) { audio.play(); setIsPlaying(true) }
     else              { audio.pause(); setIsPlaying(false) }
   }, [isLoaded])
+
+  const RATES = [0.5, 0.75, 1]
+  const cycleRate = useCallback(() => {
+    if (!audioRef.current || !isLoaded) return
+    const next = RATES[(RATES.indexOf(playbackRate) + 1) % RATES.length]
+    setPlaybackRate(next)
+    audioRef.current.playbackRate = next
+  }, [isLoaded, playbackRate])
 
   const skip = useCallback((seconds: number) => {
     const audio = audioRef.current
@@ -132,7 +141,7 @@ export default function AudioPlayer({ src, onTimeChange }: AudioPlayerProps) {
             </Button>
           </TooltipTrigger>
           <TooltipContent side="bottom" className="text-xs">
-            3초 뒤로 <kbd className="ml-1 font-mono bg-slate-100 px-1 rounded text-[10px]">←</kbd>
+            3초 뒤로 <kbd className="ml-1 font-mono bg-slate-100 text-slate-700 px-1 rounded text-[10px]">←</kbd>
           </TooltipContent>
         </Tooltip>
 
@@ -157,7 +166,7 @@ export default function AudioPlayer({ src, onTimeChange }: AudioPlayerProps) {
           </TooltipTrigger>
           <TooltipContent side="bottom" className="text-xs">
             {isPlaying ? '일시정지' : '재생'}{' '}
-            <kbd className="ml-1 font-mono bg-slate-100 px-1 rounded text-[10px]">Space</kbd>
+            <kbd className="ml-1 font-mono bg-slate-100 text-slate-700 px-1 rounded text-[10px]">Space</kbd>
           </TooltipContent>
         </Tooltip>
 
@@ -178,19 +187,38 @@ export default function AudioPlayer({ src, onTimeChange }: AudioPlayerProps) {
             </Button>
           </TooltipTrigger>
           <TooltipContent side="bottom" className="text-xs">
-            3초 앞으로 <kbd className="ml-1 font-mono bg-slate-100 px-1 rounded text-[10px]">→</kbd>
+            3초 앞으로 <kbd className="ml-1 font-mono bg-slate-100 text-slate-700 px-1 rounded text-[10px]">→</kbd>
           </TooltipContent>
         </Tooltip>
       </div>
 
+      {/* Playback rate */}
+      <div className="flex items-center justify-center">
+        <button
+          onClick={cycleRate}
+          aria-disabled={!isLoaded}
+          className={cn(
+            'text-[11px] font-mono font-medium px-2 py-0.5 rounded border transition-colors',
+            isLoaded
+              ? 'border-slate-300 text-slate-600 hover:border-slate-500 hover:text-slate-900 cursor-pointer'
+              : 'border-slate-200 text-slate-300 cursor-default',
+          )}
+        >
+          {playbackRate}x
+        </button>
+      </div>
+
       {/* Keyboard hints */}
-      <div className="flex items-center justify-center gap-4 text-[10px] text-slate-300">
-        <span>
-          <kbd className="font-mono bg-slate-100 text-slate-400 px-1 py-px rounded">Space</kbd>{' '}재생/정지
-        </span>
-        <span>
-          <kbd className="font-mono bg-slate-100 text-slate-400 px-1 py-px rounded">← →</kbd>{' '}3초
-        </span>
+      <div className="flex flex-col items-center gap-1">
+        <span className="text-[9px] text-slate-300">(인라인 편집시)</span>
+        <div className="flex items-center justify-center gap-4 text-[10px] text-slate-300">
+          <span>
+            <kbd className="font-mono bg-slate-100 text-slate-400 px-1 py-px rounded">Space</kbd>{' '}재생/정지
+          </span>
+          <span>
+            <kbd className="font-mono bg-slate-100 text-slate-400 px-1 py-px rounded">← →</kbd>{' '}3초
+          </span>
+        </div>
       </div>
     </div>
   )

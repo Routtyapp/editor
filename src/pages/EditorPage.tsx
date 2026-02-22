@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import MainEditor from '@/components/MainEditor'
 import Sidebar from '@/components/Sidebar'
 import type { TranscriptData, TranscriptLine, Character, ScriptLineDiff } from '@/types'
-import { fetchDocument, patchScriptLines, patchDocumentStatus } from '@/lib/api'
+import { fetchDocument, patchScriptLines } from '@/lib/api'
 
 const SPEAKER_COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#14B8A6', '#F97316']
 const EMPTY_TRANSCRIPT: TranscriptData = { date: '', lines: [] }
@@ -21,6 +21,7 @@ export default function EditorPage() {
   const [characters, setCharacters] = useState<Character[]>([])
   const [audioTime, setAudioTime] = useState(0)
   const originalLinesRef = useRef<TranscriptLine[]>([])
+  const originalCharactersRef = useRef<Character[]>([])
 
   useEffect(() => {
     if (!documentId) return
@@ -30,11 +31,13 @@ export default function EditorPage() {
 
       const speakerMap = new Map(speakers.map(s => [s.id, s.name]))
 
-      setCharacters(speakers.map((s, i) => ({
+      const loadedChars = speakers.map((s, i) => ({
         id: String(s.id),
         name: s.name,
         color: SPEAKER_COLORS[i % SPEAKER_COLORS.length],
-      })))
+      }))
+      originalCharactersRef.current = loadedChars
+      setCharacters(loadedChars)
 
       const loadedLines: TranscriptLine[] = script_lines.map(sl => ({
         id: String(sl.id),
@@ -50,20 +53,22 @@ export default function EditorPage() {
     })
   }, [documentId])
 
-  function buildDiff(): ScriptLineDiff | null {
+  function buildLineDiff() {
     const original = originalLinesRef.current
     const current  = transcript.lines
 
     const originalMap = new Map(original.map(l => [l.id, l]))
     const currentIds  = new Set(current.map(l => l.id))
-
-    const speakerIdMap = new Map(characters.map(c => [c.name, Number(c.id)]))
+    // created: speaker_id는 string (기존 화자 id 또는 새 화자 temp_id)
+    const speakerIdStrMap = new Map(characters.map(c => [c.name, c.id]))
+    // updated: speaker_id는 int (기존 화자만 허용)
+    const speakerIdNumMap = new Map(characters.map(c => [c.name, Number(c.id)]))
 
     const created = current
       .filter(l => l.id.startsWith('new_'))
       .map(l => ({
         temp_id: l.id,
-        speaker_id: speakerIdMap.get(l.speaker) ?? 0,
+        speaker_id: speakerIdStrMap.get(l.speaker) ?? '',
         text: l.text,
         start_time: l.timestamp,
         order: current.indexOf(l),
@@ -81,10 +86,12 @@ export default function EditorPage() {
         const patch: ScriptLineDiff['updated'][number] = { id: Number(l.id) }
         let changed = false
         if (orig.text !== l.text)           { patch.text = l.text; changed = true }
-        if (orig.speaker !== l.speaker)     { patch.speaker_id = speakerIdMap.get(l.speaker) ?? 0; changed = true }
+        if (orig.speaker !== l.speaker)     { patch.speaker_id = speakerIdNumMap.get(l.speaker) ?? 0; changed = true }
         if (orig.timestamp !== l.timestamp) { patch.start_time = l.timestamp; changed = true }
         return changed ? [patch] : []
       })
+
+    if (created.length === 0 && updated.length === 0 && deleted.length === 0) return null
 
     const hasStructureChange = created.length > 0 || deleted.length > 0
     const orders = hasStructureChange
@@ -93,31 +100,73 @@ export default function EditorPage() {
           .map((l, i) => ({ id: Number(l.id), order: i }))
       : []
 
-    if (created.length === 0 && updated.length === 0 && deleted.length === 0) {
-      return null
-    }
-
     return { created, updated, deleted, orders }
   }
 
-  async function saveLines() {
+  function buildSpeakerDiff(): ScriptLineDiff['speakers'] {
+    const original = originalCharactersRef.current
+    const current  = characters
+
+    const originalMap = new Map(original.map(c => [c.id, c]))
+    const currentIds  = new Set(current.map(c => c.id))
+
+    const created = current
+      .filter(c => c.id.startsWith('new_speaker_'))
+      .map(c => ({ temp_id: c.id, name: c.name }))
+
+    const deleted = original
+      .filter(c => !currentIds.has(c.id))
+      .map(c => Number(c.id))
+
+    const updated = current
+      .filter(c => !c.id.startsWith('new_speaker_'))
+      .flatMap(c => {
+        const orig = originalMap.get(c.id)
+        if (!orig || orig.name === c.name) return []
+        return [{ id: Number(c.id), name: c.name }]
+      })
+
+    return { created, updated, deleted }
+  }
+
+  async function save(status: 'in_progress' | 'completed' | null) {
     if (!documentId) return
-    const diff = buildDiff()
-    if (diff) {
-      await patchScriptLines(Number(documentId), diff)
-      originalLinesRef.current = transcript.lines
+
+    const lineDiff     = buildLineDiff()
+    const speakerDiff  = buildSpeakerDiff()
+    const hasSpeakerChanges =
+      speakerDiff.created.length > 0 ||
+      speakerDiff.updated.length > 0 ||
+      speakerDiff.deleted.length > 0
+
+    if (!lineDiff && !hasSpeakerChanges && status === null) return
+
+    const payload: ScriptLineDiff = {
+      status,
+      speakers: speakerDiff,
+      created:  lineDiff?.created  ?? [],
+      updated:  lineDiff?.updated  ?? [],
+      deleted:  lineDiff?.deleted  ?? [],
+      orders:   lineDiff?.orders   ?? [],
     }
+
+    const response = await patchScriptLines(Number(documentId), payload)
+
+    // 라인 temp_id → 실제 id 교체 ([temp_id, db_id] 튜플 형태)
+    const lineIdMap = new Map(response.lines.map(([temp_id, id]) => [temp_id, String(id)]))
+    const newLines = transcript.lines.map(l => ({ ...l, id: lineIdMap.get(l.id) ?? l.id }))
+    originalLinesRef.current = newLines
+    setTranscript(prev => ({ ...prev, lines: newLines }))
+
+    // 화자 temp_id → 실제 id 교체 ([temp_id, db_id] 튜플 형태)
+    const speakerIdMap = new Map(response.speakers.map(([temp_id, id]) => [temp_id, String(id)]))
+    const newChars = characters.map(c => ({ ...c, id: speakerIdMap.get(c.id) ?? c.id }))
+    originalCharactersRef.current = newChars
+    setCharacters(newChars)
   }
 
-  async function handleSaveProgress() {
-    await saveLines()
-    await patchDocumentStatus(Number(documentId!), 'in_progress')
-  }
-
-  async function handleComplete() {
-    await saveLines()
-    await patchDocumentStatus(Number(documentId!), 'completed')
-  }
+  async function handleSaveProgress() { await save('in_progress') }
+  async function handleComplete()     { await save('completed') }
 
   const handleSetCharacters = (newChars: Character[]) => {
     const renamedMap = new Map<string, string>()

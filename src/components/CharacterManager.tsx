@@ -28,7 +28,7 @@ export default function CharacterManager({ characters, setCharacters }: Characte
   const addCharacter = () => {
     const trimmed = newName.trim()
     if (!trimmed) return
-    setCharacters([...characters, { id: Date.now().toString(), name: trimmed, color: nextColor() }])
+    setCharacters([...characters, { id: `new_speaker_${Date.now()}`, name: trimmed, color: nextColor() }])
     setNewName('')
     newInputRef.current?.focus()
   }
