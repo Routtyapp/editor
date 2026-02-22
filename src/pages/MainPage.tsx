@@ -1,22 +1,17 @@
-import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { fetchDocuments } from '@/lib/api'
+import { fetchDocuments, downloadDocuments } from '@/lib/api'
 import {
   useReactTable,
   getCoreRowModel,
-  getSortedRowModel,
-  getFilteredRowModel,
   flexRender,
   type ColumnDef,
-  type SortingState,
-  type ColumnFiltersState,
   type RowSelectionState,
 } from '@tanstack/react-table'
-import { FileText, ArrowUpDown, ArrowUp, ArrowDown, Download, FileArchive, Files, ChevronLeft, ChevronRight } from 'lucide-react'
+import { FileText, ArrowUpDown, ArrowUp, ArrowDown, Download, FileArchive, ChevronLeft, ChevronRight } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
@@ -34,13 +29,29 @@ interface FileItem {
   id: number
   fileName: string
   lastModified: string
-  fileSize: number  // bytes
-  isCompleted: boolean
+  fileSize: number
+  status: 'pending' | 'in_progress' | 'completed'
+}
+
+interface FetchParams {
+  q: string
+  progress: string
+  sortBy: string
+  order: 'asc' | 'desc'
+  page: number
 }
 
 const PAGE_SIZE = 20
 
-// ── Column definitions ─────────────────────────────────────────────────────
+// 프론트 컬럼 키 → 백엔드 sort_by 파라미터 매핑
+const SORT_KEY_MAP: Record<string, string> = {
+  id: 'id',
+  fileName: 'title',
+  fileSize: 'file_size',
+  lastModified: 'updated_at',
+}
+
+// ── Sub-components ──────────────────────────────────────────────────────────
 
 function SortIcon({ isSorted }: { isSorted: false | 'asc' | 'desc' }) {
   if (isSorted === 'asc') return <ArrowUp className="ml-1.5 h-3 w-3" />
@@ -48,139 +59,13 @@ function SortIcon({ isSorted }: { isSorted: false | 'asc' | 'desc' }) {
   return <ArrowUpDown className="ml-1.5 h-3 w-3 text-slate-300" />
 }
 
-const columns: ColumnDef<FileItem>[] = [
-  {
-    id: 'select',
-    header: ({ table }) => {
-      const allFilteredRows = table.getFilteredRowModel().rows
-      const selectedCount = allFilteredRows.filter(r => r.getIsSelected()).length
-      const isAllSelected = selectedCount === allFilteredRows.length && allFilteredRows.length > 0
-      const isSomeSelected = selectedCount > 0 && !isAllSelected
-      return (
-        <Checkbox
-          checked={isSomeSelected ? 'indeterminate' : isAllSelected}
-          onCheckedChange={checked => {
-            allFilteredRows.forEach(row => row.toggleSelected(!!checked))
-          }}
-          aria-label="전체 선택"
-          className="border-slate-300"
-        />
-      )
-    },
-    cell: ({ row }) => (
-      <Checkbox
-        checked={row.getIsSelected()}
-        onCheckedChange={row.getToggleSelectedHandler()}
-        onClick={e => e.stopPropagation()}
-        aria-label="행 선택"
-        className="border-slate-300"
-      />
-    ),
-    size: 44,
-    enableSorting: false,
-  },
-  {
-    accessorKey: 'id',
-    header: ({ column }) => (
-      <button
-        className="flex items-center text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-400 hover:text-slate-600 transition-colors"
-        onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
-      >
-        #<SortIcon isSorted={column.getIsSorted()} />
-      </button>
-    ),
-    cell: ({ getValue }) => (
-      <span className="text-xs text-slate-400 font-mono tabular-nums">{getValue<number>()}</span>
-    ),
-    size: 56,
-  },
-  {
-    accessorKey: 'fileName',
-    header: ({ column }) => (
-      <button
-        className="flex items-center text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-400 hover:text-slate-600 transition-colors"
-        onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
-      >
-        파일명<SortIcon isSorted={column.getIsSorted()} />
-      </button>
-    ),
-    cell: ({ getValue }) => (
-      <span className="flex items-center gap-3 min-w-0">
-        <FileText className="w-4 h-4 text-slate-300 shrink-0 group-hover:text-slate-400 transition-colors" />
-        <span className="text-sm font-medium text-slate-700 truncate group-hover:text-slate-900 transition-colors">
-          {getValue<string>()}
-        </span>
-      </span>
-    ),
-  },
-  {
-    accessorKey: 'fileSize',
-    header: ({ column }) => (
-      <button
-        className="flex items-center ml-auto text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-400 hover:text-slate-600 transition-colors"
-        onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
-      >
-        파일 크기<SortIcon isSorted={column.getIsSorted()} />
-      </button>
-    ),
-    cell: ({ getValue }) => {
-      const bytes = getValue<number>()
-      const formatted = bytes >= 1_048_576
-        ? `${(bytes / 1_048_576).toFixed(1)} MB`
-        : `${Math.round(bytes / 1024)} KB`
-      return (
-        <span className="block text-right text-sm text-slate-400 font-mono tabular-nums">
-          {formatted}
-        </span>
-      )
-    },
-    size: 120,
-  },
-  {
-    accessorKey: 'lastModified',
-    header: ({ column }) => (
-      <button
-        className="flex items-center ml-auto text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-400 hover:text-slate-600 transition-colors"
-        onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
-      >
-        최근 수정<SortIcon isSorted={column.getIsSorted()} />
-      </button>
-    ),
-    cell: ({ getValue }) => (
-      <span className="block text-right text-sm text-slate-400 font-mono tabular-nums">
-        {getValue<string>()}
-      </span>
-    ),
-    size: 144,
-  },
-  {
-    accessorKey: 'isCompleted',
-    header: () => (
-      <span className="block text-right text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-400">
-        완료 여부
-      </span>
-    ),
-    cell: ({ getValue }) =>
-      getValue<boolean>() ? (
-        <span className="flex justify-end">
-          <Badge className="bg-emerald-50 text-emerald-700 border-0 text-[11px] font-medium px-2.5 py-0.5 hover:bg-emerald-50">
-            완료
-          </Badge>
-        </span>
-      ) : (
-        <span className="flex justify-end">
-          <Badge className="bg-slate-100 text-slate-500 border-0 text-[11px] font-medium px-2.5 py-0.5 hover:bg-slate-100">
-            미완료
-          </Badge>
-        </span>
-      ),
-    size: 112,
-    filterFn: (row, _id, filterValue) => {
-      if (filterValue === 'all') return true
-      return filterValue === 'completed' ? row.original.isCompleted : !row.original.isCompleted
-    },
-  },
-]
+function StatusBadge({ status }: { status: FileItem['status'] }) {
+  if (status === 'completed')
+    return <Badge className="bg-emerald-50 text-emerald-700 border-0 text-[11px] font-medium px-2.5 py-0.5 hover:bg-emerald-50">완료</Badge>
+  if (status === 'in_progress')
+    return <Badge className="bg-blue-50 text-blue-700 border-0 text-[11px] font-medium px-2.5 py-0.5 hover:bg-blue-50">진행중</Badge>
+  return <Badge className="bg-slate-100 text-slate-500 border-0 text-[11px] font-medium px-2.5 py-0.5 hover:bg-slate-100">미시작</Badge>
+}
 
 // ── Page ───────────────────────────────────────────────────────────────────
 
@@ -188,53 +73,215 @@ export default function MainPage() {
   const { categoryId, folderName } = useParams<{ categoryId: string; folderName: string }>()
   const navigate = useNavigate()
   const decodedFolderName = folderName ? decodeURIComponent(folderName) : '폴더'
+
   const [data, setData] = useState<FileItem[]>([])
-  const [sorting, setSorting] = useState<SortingState>([])
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
-  const [statusFilter, setStatusFilter] = useState('all')
+  const [hasMore, setHasMore] = useState(false)
+  const [searchInput, setSearchInput] = useState('')
+  const [params, setParams] = useState<FetchParams>({
+    q: '',
+    progress: 'all',
+    sortBy: 'id',
+    order: 'asc',
+    page: 1,
+  })
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
-  const [downloadOpen, setDownloadOpen] = useState(false)
-  const [downloadType, setDownloadType] = useState<'individual' | 'zip'>('individual')
-  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
+  const [isDownloading, setIsDownloading] = useState(false)
   const sentinelRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
 
+  // 검색 입력 디바운스 → params.q 업데이트
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setParams(prev => {
+        if (prev.q === searchInput) return prev
+        return { ...prev, q: searchInput, page: 1 }
+      })
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [searchInput])
+
+  // 파라미터 변경 시 서버에서 데이터 fetch
   useEffect(() => {
     if (!categoryId) return
-    fetchDocuments(Number(categoryId)).then(docs => {
-      setData(docs.map(d => ({
+    fetchDocuments({
+      categoryId: Number(categoryId),
+      q: params.q || undefined,
+      progress: params.progress !== 'all' ? params.progress : undefined,
+      sortBy: params.sortBy,
+      order: params.order,
+      page: params.page,
+      size: PAGE_SIZE,
+    }).then(docs => {
+      const items: FileItem[] = docs.map(d => ({
         id: d.id,
         fileName: d.title,
         lastModified: new Date(d.updated_at).toLocaleDateString('ko-KR'),
         fileSize: d.file_size,
-        isCompleted: d.status === 'completed',
-      })))
+        status: d.status,
+      }))
+      setData(prev => params.page === 1 ? items : [...prev, ...items])
+      setHasMore(docs.length === PAGE_SIZE)
     })
-  }, [categoryId])
+  }, [categoryId, params])
 
-  const tableData = useMemo(() => data, [data])
+  // ── Handlers ────────────────────────────────────────────────────────────
+
+  function handleSort(colKey: string) {
+    const backendKey = SORT_KEY_MAP[colKey] ?? colKey
+    setParams(prev => ({
+      ...prev,
+      sortBy: backendKey,
+      order: prev.sortBy === backendKey && prev.order === 'asc' ? 'desc' : 'asc',
+      page: 1,
+    }))
+  }
+
+  function handleStatusChange(value: string) {
+    setParams(prev => ({ ...prev, progress: value, page: 1 }))
+  }
+
+  function getSortedState(colKey: string): false | 'asc' | 'desc' {
+    const backendKey = SORT_KEY_MAP[colKey] ?? colKey
+    return params.sortBy === backendKey ? params.order : false
+  }
+
+  // ── Column definitions ──────────────────────────────────────────────────
+
+  const columns: ColumnDef<FileItem>[] = [
+    {
+      id: 'select',
+      header: ({ table }) => {
+        const allRows = table.getCoreRowModel().rows
+        const selectedCount = allRows.filter(r => r.getIsSelected()).length
+        const isAllSelected = selectedCount === allRows.length && allRows.length > 0
+        const isSomeSelected = selectedCount > 0 && !isAllSelected
+        return (
+          <Checkbox
+            checked={isSomeSelected ? 'indeterminate' : isAllSelected}
+            onCheckedChange={checked => allRows.forEach(row => row.toggleSelected(!!checked))}
+            aria-label="전체 선택"
+            className="border-slate-300"
+          />
+        )
+      },
+      cell: ({ row }) => (
+        <Checkbox
+          checked={row.getIsSelected()}
+          onCheckedChange={row.getToggleSelectedHandler()}
+          onClick={e => e.stopPropagation()}
+          aria-label="행 선택"
+          className="border-slate-300"
+        />
+      ),
+      size: 44,
+      enableSorting: false,
+    },
+    {
+      accessorKey: 'id',
+      header: () => (
+        <button
+          className="flex items-center text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-400 hover:text-slate-600 transition-colors"
+          onClick={() => handleSort('id')}
+        >
+          #<SortIcon isSorted={getSortedState('id')} />
+        </button>
+      ),
+      cell: ({ getValue }) => (
+        <span className="text-xs text-slate-400 font-mono tabular-nums">{getValue<number>()}</span>
+      ),
+      size: 56,
+    },
+    {
+      accessorKey: 'fileName',
+      header: () => (
+        <button
+          className="flex items-center text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-400 hover:text-slate-600 transition-colors"
+          onClick={() => handleSort('fileName')}
+        >
+          파일명<SortIcon isSorted={getSortedState('fileName')} />
+        </button>
+      ),
+      cell: ({ getValue }) => (
+        <span className="flex items-center gap-3 min-w-0">
+          <FileText className="w-4 h-4 text-slate-300 shrink-0 group-hover:text-slate-400 transition-colors" />
+          <span className="text-sm font-medium text-slate-700 truncate group-hover:text-slate-900 transition-colors">
+            {getValue<string>()}
+          </span>
+        </span>
+      ),
+    },
+    {
+      accessorKey: 'fileSize',
+      header: () => (
+        <button
+          className="flex items-center ml-auto text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-400 hover:text-slate-600 transition-colors"
+          onClick={() => handleSort('fileSize')}
+        >
+          파일 크기<SortIcon isSorted={getSortedState('fileSize')} />
+        </button>
+      ),
+      cell: ({ getValue }) => {
+        const bytes = getValue<number>()
+        const formatted = bytes >= 1_048_576
+          ? `${(bytes / 1_048_576).toFixed(1)} MB`
+          : `${Math.round(bytes / 1024)} KB`
+        return (
+          <span className="block text-right text-sm text-slate-400 font-mono tabular-nums">
+            {formatted}
+          </span>
+        )
+      },
+      size: 120,
+    },
+    {
+      accessorKey: 'lastModified',
+      header: () => (
+        <button
+          className="flex items-center ml-auto text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-400 hover:text-slate-600 transition-colors"
+          onClick={() => handleSort('lastModified')}
+        >
+          최근 수정<SortIcon isSorted={getSortedState('lastModified')} />
+        </button>
+      ),
+      cell: ({ getValue }) => (
+        <span className="block text-right text-sm text-slate-400 font-mono tabular-nums">
+          {getValue<string>()}
+        </span>
+      ),
+      size: 144,
+    },
+    {
+      accessorKey: 'status',
+      header: () => (
+        <span className="block text-right text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-400">
+          완료 여부
+        </span>
+      ),
+      cell: ({ getValue }) => (
+        <span className="flex justify-end">
+          <StatusBadge status={getValue<FileItem['status']>()} />
+        </span>
+      ),
+      size: 112,
+    },
+  ]
 
   const table = useReactTable({
-    data: tableData,
+    data,
     columns,
     getRowId: row => String(row.id),
-    state: { sorting, columnFilters, rowSelection },
-    onSortingChange: updater => { setSorting(updater); setVisibleCount(PAGE_SIZE) },
-    onColumnFiltersChange: updater => { setColumnFilters(updater); setVisibleCount(PAGE_SIZE) },
+    state: { rowSelection },
     onRowSelectionChange: setRowSelection,
     getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
     enableRowSelection: true,
   })
 
-  const allFilteredRows = table.getFilteredRowModel().rows
-  const visibleRows = allFilteredRows.slice(0, visibleCount)
-  const hasMore = visibleCount < allFilteredRows.length
+  const allRows = table.getCoreRowModel().rows
   const selectedCount = Object.values(rowSelection).filter(Boolean).length
 
+  // 무한 스크롤: sentinel 진입 시 다음 페이지 요청
   const loadMore = useCallback(() => {
-    setVisibleCount(prev => prev + PAGE_SIZE)
+    setParams(prev => ({ ...prev, page: prev.page + 1 }))
   }, [])
 
   useEffect(() => {
@@ -248,19 +295,18 @@ export default function MainPage() {
     return () => observer.unobserve(el)
   }, [hasMore, loadMore])
 
-  function handleStatusChange(value: string) {
-    setStatusFilter(value)
-    table.getColumn('isCompleted')?.setFilterValue(value)
-  }
-
-  function handleDownload() {
-    const selectedFiles = allFilteredRows
+  async function handleDownload() {
+    const selectedIds = allRows
       .filter(row => rowSelection[row.id])
-      .map(row => row.original.fileName)
-    console.log(`다운로드 요청 (${downloadType}):`, selectedFiles)
-    // TODO: 개별 → GET /api/files/:id/download 순차 호출
-    //       zip  → POST /api/download/zip { files: selectedFiles } → Presigned URL
-    setDownloadOpen(false)
+      .map(row => row.original.id)
+    if (selectedIds.length === 0) return
+    setIsDownloading(true)
+    try {
+      await downloadDocuments(selectedIds)
+      setRowSelection({})
+    } finally {
+      setIsDownloading(false)
+    }
   }
 
   return (
@@ -282,7 +328,7 @@ export default function MainPage() {
               onClick={() => navigate('/')}
               className="text-slate-400 px-1 text-xs hover:text-slate-700"
             >
-              루트
+              카테고리
             </button>
             <ChevronRight className="w-3 h-3 text-slate-300" />
           </span>
@@ -299,7 +345,6 @@ export default function MainPage() {
 
           {/* Toolbar */}
           <div className="h-12 shrink-0 border-b border-slate-200 flex items-center gap-3 px-6">
-            {/* 선택 카운트 + 다운로드 */}
             {selectedCount > 0 ? (
               <>
                 <span className="text-xs font-medium text-slate-700 tabular-nums">
@@ -307,35 +352,51 @@ export default function MainPage() {
                 </span>
                 <Button
                   size="sm"
-                  onClick={() => setDownloadOpen(true)}
+                  onClick={handleDownload}
+                  disabled={isDownloading}
                   className="h-7 px-3 text-xs gap-1.5"
                 >
-                  <Download className="w-3.5 h-3.5" />
-                  다운로드
+                  {isDownloading ? (
+                    <>
+                      <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      다운로드 중...
+                    </>
+                  ) : selectedCount === 1 ? (
+                    <>
+                      <Download className="w-3.5 h-3.5" />
+                      DOCX 다운로드
+                    </>
+                  ) : (
+                    <>
+                      <FileArchive className="w-3.5 h-3.5" />
+                      ZIP 다운로드
+                    </>
+                  )}
                 </Button>
                 <div className="w-px h-4 bg-slate-200 mx-1" />
               </>
             ) : (
               <span className="text-xs text-slate-400 tabular-nums">
-                {allFilteredRows.length}개
+                {data.length}개{hasMore ? '+' : ''}
               </span>
             )}
 
             <div className="ml-auto flex items-center gap-3">
               <Input
                 placeholder="파일명 검색..."
-                value={(table.getColumn('fileName')?.getFilterValue() as string) ?? ''}
-                onChange={e => table.getColumn('fileName')?.setFilterValue(e.target.value)}
+                value={searchInput}
+                onChange={e => setSearchInput(e.target.value)}
                 className="h-7 w-60 text-xs border-slate-200 placeholder:text-slate-400 focus-visible:ring-1 focus-visible:ring-slate-300"
               />
-              <Select value={statusFilter} onValueChange={handleStatusChange}>
+              <Select value={params.progress} onValueChange={handleStatusChange}>
                 <SelectTrigger className="h-7 w-28 text-xs border-slate-200 focus:ring-1 focus:ring-slate-300">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all" className="text-xs">전체</SelectItem>
                   <SelectItem value="completed" className="text-xs">완료</SelectItem>
-                  <SelectItem value="incomplete" className="text-xs">미완료</SelectItem>
+                  <SelectItem value="in_progress" className="text-xs">진행중</SelectItem>
+                  <SelectItem value="pending" className="text-xs">미시작</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -360,8 +421,8 @@ export default function MainPage() {
                 ))}
               </TableHeader>
               <TableBody>
-                {visibleRows.length ? (
-                  visibleRows.map(row => (
+                {allRows.length ? (
+                  allRows.map(row => (
                     <TableRow
                       key={row.id}
                       onClick={() => {
@@ -397,9 +458,9 @@ export default function MainPage() {
               <div ref={sentinelRef} className="h-12 flex items-center justify-center">
                 <div className="w-4 h-4 border-2 border-slate-200 border-t-slate-400 rounded-full animate-spin" />
               </div>
-            ) : visibleRows.length > 0 ? (
+            ) : allRows.length > 0 ? (
               <p className="py-6 text-center text-xs text-slate-400">
-                {allFilteredRows.length}개 전체 로드 완료
+                {data.length}개 전체 로드 완료
               </p>
             ) : null}
           </div>
@@ -407,80 +468,6 @@ export default function MainPage() {
           </section>
         </div>
       </div>
-
-      {/* ── Download Modal ── */}
-      <Dialog open={downloadOpen} onOpenChange={setDownloadOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-sm font-semibold">다운로드</DialogTitle>
-          </DialogHeader>
-
-          <p className="text-xs text-slate-500 -mt-1">
-            {selectedCount}개 파일을 어떻게 다운로드할까요?
-          </p>
-
-          {/* 옵션 */}
-          <div className="grid grid-cols-2 gap-3 py-2">
-            <button
-              onClick={() => setDownloadType('individual')}
-              className={`flex flex-col items-center gap-3 rounded-xl border-2 p-5 transition-colors text-left ${
-                downloadType === 'individual'
-                  ? 'border-slate-900 bg-slate-50'
-                  : 'border-slate-200 hover:border-slate-300'
-              }`}
-            >
-              <Files className={`w-7 h-7 ${downloadType === 'individual' ? 'text-slate-900' : 'text-slate-400'}`} />
-              <div>
-                <p className={`text-sm font-medium ${downloadType === 'individual' ? 'text-slate-900' : 'text-slate-600'}`}>
-                  개별 다운로드
-                </p>
-                <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">
-                  파일을 각각 따로<br />다운로드합니다
-                </p>
-              </div>
-            </button>
-
-            <button
-              onClick={() => setDownloadType('zip')}
-              className={`flex flex-col items-center gap-3 rounded-xl border-2 p-5 transition-colors text-left ${
-                downloadType === 'zip'
-                  ? 'border-slate-900 bg-slate-50'
-                  : 'border-slate-200 hover:border-slate-300'
-              }`}
-            >
-              <FileArchive className={`w-7 h-7 ${downloadType === 'zip' ? 'text-slate-900' : 'text-slate-400'}`} />
-              <div>
-                <p className={`text-sm font-medium ${downloadType === 'zip' ? 'text-slate-900' : 'text-slate-600'}`}>
-                  ZIP 다운로드
-                </p>
-                <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">
-                  하나의 ZIP 파일로<br />묶어서 다운로드합니다
-                </p>
-              </div>
-            </button>
-          </div>
-
-          {/* 액션 버튼 */}
-          <div className="flex justify-end gap-2 pt-1">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setDownloadOpen(false)}
-              className="h-8 px-4 text-xs text-slate-600"
-            >
-              취소
-            </Button>
-            <Button
-              size="sm"
-              onClick={handleDownload}
-              className="h-8 px-4 text-xs gap-1.5"
-            >
-              <Download className="w-3.5 h-3.5" />
-              다운로드
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
 
     </div>
   )

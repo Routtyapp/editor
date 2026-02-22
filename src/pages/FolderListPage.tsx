@@ -1,5 +1,5 @@
 ﻿import { useEffect, useMemo, useState } from 'react'
-import { ChevronLeft, Download, Folder } from 'lucide-react'
+import { ChevronLeft, Download, Folder, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -20,11 +20,31 @@ interface FolderItem {
   lastModified: string
 }
 
+type SortKey = 'id' | 'folderName' | 'lastModified'
+type SortDir = 'asc' | 'desc'
+
+function SortIcon({ isSorted }: { isSorted: false | SortDir }) {
+  if (isSorted === 'asc') return <ArrowUp className="ml-1.5 h-3 w-3" />
+  if (isSorted === 'desc') return <ArrowDown className="ml-1.5 h-3 w-3" />
+  return <ArrowUpDown className="ml-1.5 h-3 w-3 text-slate-300" />
+}
+
 export default function FolderListPage() {
   const navigate = useNavigate()
   const [folders, setFolders] = useState<FolderItem[]>([])
   const [search, setSearch] = useState('')
   const [selectedFolderIds, setSelectedFolderIds] = useState<Record<number, boolean>>({})
+  const [sortKey, setSortKey] = useState<SortKey | null>(null)
+  const [sortDir, setSortDir] = useState<SortDir>('asc')
+
+  function handleSort(key: SortKey) {
+    if (sortKey === key) {
+      setSortDir(prev => prev === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortKey(key)
+      setSortDir('asc')
+    }
+  }
 
   useEffect(() => {
     fetchCategories().then(data => {
@@ -37,10 +57,18 @@ export default function FolderListPage() {
   }, [])
 
   const filteredFolders = useMemo(() => {
-    return folders.filter(folder =>
+    const filtered = folders.filter(folder =>
       folder.folderName.toLowerCase().includes(search.toLowerCase())
     )
-  }, [folders, search])
+    if (!sortKey) return filtered
+    return [...filtered].sort((a, b) => {
+      if (sortKey === 'id') {
+        return sortDir === 'asc' ? a.id - b.id : b.id - a.id
+      }
+      const cmp = a[sortKey].localeCompare(b[sortKey], 'ko')
+      return sortDir === 'asc' ? cmp : -cmp
+    })
+  }, [folders, search, sortKey, sortDir])
 
   const selectedCount = filteredFolders.filter(folder => selectedFolderIds[folder.id]).length
   const isAllSelected = filteredFolders.length > 0 && selectedCount === filteredFolders.length
@@ -82,7 +110,7 @@ export default function FolderListPage() {
         <nav className="flex items-center gap-0.5 text-sm min-w-0">
           <span className="flex items-center gap-0.5 shrink-0">
             <span className="text-slate-800 font-medium px-1 text-sm">
-              루트
+              카테고리
             </span>
           </span>
         </nav>
@@ -131,9 +159,30 @@ export default function FolderListPage() {
                         className="border-slate-300"
                       />
                     </TableHead>
-                    <TableHead className="h-10 px-6 text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-400">#</TableHead>
-                    <TableHead className="h-10 px-6 text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-400">폴더명</TableHead>
-                    <TableHead className="h-10 px-6 text-right text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-400">최종 수정</TableHead>
+                    <TableHead className="h-10 px-6">
+                      <button
+                        className="flex items-center text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-400 hover:text-slate-600 transition-colors"
+                        onClick={() => handleSort('id')}
+                      >
+                        #<SortIcon isSorted={sortKey === 'id' ? sortDir : false} />
+                      </button>
+                    </TableHead>
+                    <TableHead className="h-10 px-6">
+                      <button
+                        className="flex items-center text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-400 hover:text-slate-600 transition-colors"
+                        onClick={() => handleSort('folderName')}
+                      >
+                        폴더명<SortIcon isSorted={sortKey === 'folderName' ? sortDir : false} />
+                      </button>
+                    </TableHead>
+                    <TableHead className="h-10 px-6 text-right">
+                      <button
+                        className="flex items-center ml-auto text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-400 hover:text-slate-600 transition-colors"
+                        onClick={() => handleSort('lastModified')}
+                      >
+                        최종 수정<SortIcon isSorted={sortKey === 'lastModified' ? sortDir : false} />
+                      </button>
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
 

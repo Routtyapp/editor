@@ -23,9 +23,9 @@ export default function EditorPage() {
 
   useEffect(() => {
     if (!documentId) return
-    fetchDocument(Number(documentId)).then(({ document, speakers, script_lines }) => {
+    fetchDocument(Number(documentId)).then(({ document, audio_presigned_url, speakers, script_lines }) => {
       setTitle(document.title)
-      setAudioSrc(document.audio_url ?? undefined)
+      setAudioSrc(audio_presigned_url ?? undefined)
 
       const speakerMap = new Map(speakers.map(s => [s.id, s.name]))
 
@@ -88,7 +88,7 @@ export default function EditorPage() {
               onClick={() => navigate('/')}
               className="text-slate-400 px-1 text-xs hover:text-slate-700"
             >
-              루트
+              카테고리
             </button>
             <ChevronRight className="w-3 h-3 text-slate-300" />
           </span>
