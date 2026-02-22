@@ -6,6 +6,7 @@ import MainEditor from '@/components/MainEditor'
 import Sidebar from '@/components/Sidebar'
 import type { TranscriptData, TranscriptLine, Character, ScriptLineDiff } from '@/types'
 import { fetchDocument, patchScriptLines } from '@/lib/api'
+import { toast } from 'sonner'
 
 const SPEAKER_COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#14B8A6', '#F97316']
 const EMPTY_TRANSCRIPT: TranscriptData = { date: '', lines: [] }
@@ -132,6 +133,19 @@ export default function EditorPage() {
   async function save(status: 'in_progress' | 'completed' | null) {
     if (!documentId) return
 
+    // 빈 필드 검증
+    const emptyLine = transcript.lines.find(l => !l.speaker.trim() || !l.text.trim())
+    if (emptyLine) {
+      if (!emptyLine.speaker.trim() && !emptyLine.text.trim()) {
+        toast.error('화자와 내용을 모두 입력해주세요.')
+      } else if (!emptyLine.speaker.trim()) {
+        toast.error('화자가 지정되지 않은 줄이 있습니다.')
+      } else {
+        toast.error('내용이 비어있는 줄이 있습니다.')
+      }
+      return
+    }
+
     const lineDiff     = buildLineDiff()
     const speakerDiff  = buildSpeakerDiff()
     const hasSpeakerChanges =
@@ -150,19 +164,27 @@ export default function EditorPage() {
       orders:   lineDiff?.orders   ?? [],
     }
 
-    const response = await patchScriptLines(Number(documentId), payload)
+    try {
+      const response = await patchScriptLines(Number(documentId), payload)
 
-    // 라인 temp_id → 실제 id 교체 ([temp_id, db_id] 튜플 형태)
-    const lineIdMap = new Map(response.lines.map(([temp_id, id]) => [temp_id, String(id)]))
-    const newLines = transcript.lines.map(l => ({ ...l, id: lineIdMap.get(l.id) ?? l.id }))
-    originalLinesRef.current = newLines
-    setTranscript(prev => ({ ...prev, lines: newLines }))
+      // 라인 temp_id → 실제 id 교체 ([temp_id, db_id] 튜플 형태)
+      const lineIdMap = new Map(response.lines.map(([temp_id, id]) => [temp_id, String(id)]))
+      const newLines = transcript.lines.map(l => ({ ...l, id: lineIdMap.get(l.id) ?? l.id }))
+      originalLinesRef.current = newLines
+      setTranscript(prev => ({ ...prev, lines: newLines }))
 
-    // 화자 temp_id → 실제 id 교체 ([temp_id, db_id] 튜플 형태)
-    const speakerIdMap = new Map(response.speakers.map(([temp_id, id]) => [temp_id, String(id)]))
-    const newChars = characters.map(c => ({ ...c, id: speakerIdMap.get(c.id) ?? c.id }))
-    originalCharactersRef.current = newChars
-    setCharacters(newChars)
+      // 화자 temp_id → 실제 id 교체 ([temp_id, db_id] 튜플 형태)
+      const speakerIdMap = new Map(response.speakers.map(([temp_id, id]) => [temp_id, String(id)]))
+      const newChars = characters.map(c => ({ ...c, id: speakerIdMap.get(c.id) ?? c.id }))
+      originalCharactersRef.current = newChars
+      setCharacters(newChars)
+
+      if (status === 'in_progress') toast.success('진행상태가 저장되었습니다.')
+      if (status === 'completed')   toast.success('작업이 완료 처리되었습니다.')
+    } catch {
+      if (status === 'in_progress') toast.error('진행상태 저장에 실패했습니다.')
+      if (status === 'completed')   toast.error('작업 완료 처리에 실패했습니다.')
+    }
   }
 
   async function handleSaveProgress() { await save('in_progress') }

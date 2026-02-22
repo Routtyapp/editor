@@ -122,7 +122,7 @@ export default function MainEditor({ transcript, setTranscript, characters, audi
         <span className="text-[10px] text-slate-400">(인라인 편집시)</span>
         {[
           { key: 'Alt + Enter', label: '새 줄 삽입' },
-          { key: 'Ctrl + S',    label: '저장' },
+          { key: 'Alt + S',     label: '저장' },
           { key: 'Esc',         label: '취소' },
         ].map(({ key, label }) => (
           <span key={key} className="flex items-center gap-1.5 text-[11px] text-slate-400">
@@ -193,7 +193,7 @@ function TranscriptRow({
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && e.altKey) { e.preventDefault(); onEnter() }
-    if (e.key === 's' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); onCommit() }
+    if (e.key === 's' && e.altKey) { e.preventDefault(); onCommit() }
     if (e.key === 'Escape') { e.preventDefault(); onCancel() }
   }
 

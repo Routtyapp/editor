@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react'
-import { Plus, Pencil, X, Check } from 'lucide-react'
+import { Plus, Pencil, X, Check, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
@@ -48,6 +48,10 @@ export default function CharacterManager({ characters, setCharacters }: Characte
 
   const cancelEditing = () => setEditingId(null)
 
+  const deleteCharacter = (id: string) => {
+    setCharacters(characters.filter(c => c.id !== id))
+  }
+
   const setColor = (id: string, color: string) => {
     setCharacters(characters.map(c => (c.id === id ? { ...c, color } : c)))
     setSwatchOpenId(null)
@@ -95,6 +99,10 @@ export default function CharacterManager({ characters, setCharacters }: Characte
                 <Button variant="ghost" size="icon" onClick={() => startEditing(char)}
                   className={cn('w-7 h-7 text-slate-300 hover:text-slate-600 shrink-0', 'opacity-0 group-hover:opacity-100 transition-opacity')}>
                   <Pencil className="w-3 h-3" />
+                </Button>
+                <Button variant="ghost" size="icon" onClick={() => deleteCharacter(char.id)}
+                  className={cn('w-7 h-7 text-slate-300 hover:text-red-500 hover:bg-red-50 shrink-0', 'opacity-0 group-hover:opacity-100 transition-opacity')}>
+                  <Trash2 className="w-3 h-3" />
                 </Button>
               </>
             )}

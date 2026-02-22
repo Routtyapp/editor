@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { TooltipProvider } from '@/components/ui/tooltip'
+import { Toaster } from '@/components/ui/sonner'
 import MainPage from './pages/MainPage'
 import EditorPage from './pages/EditorPage'
 import FolderListPage from './pages/FolderListPage'
@@ -14,6 +15,7 @@ export default function App() {
           <Route path="/:categoryId/:folderName/:documentId" element={<EditorPage />} />
         </Routes>
       </BrowserRouter>
+      <Toaster position="top-center" richColors />
     </TooltipProvider>
   )
 }
